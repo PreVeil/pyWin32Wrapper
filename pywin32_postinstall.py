@@ -2,7 +2,7 @@
 #
 # copies PyWinTypesxx.dll and PythonCOMxx.dll into the system directory,
 # and creates a pth file
-import os, sys, glob, shutil, time
+import os, sys, glob, shutil, time, tempfile
 import _winreg as winreg
 
 # Send output somewhere so it can be found if necessary...
@@ -121,6 +121,23 @@ except NameError:
 def CopyTo(desc, src, dest):
     import win32api, win32con
     while 1:
+        # This is a hack that allows us to replace an in use DLL on windows.
+        # This script is able to manage this behavior without the hack, but
+        # only if it is run as the only python process. This means the
+        # script can't really be executed from pip, which sucks.
+        # For more info, see the Raymond Chen link
+        #   https://technet.microsoft.com/en-us/magazine/2008.11.windowsconfidential.aspx
+        try:
+
+            dirpath = tempfile.mkdtemp()
+            win32api.MoveFile(dest, os.path.join(dirpath, os.path.basename(dest)))
+        except win32api.error, details:
+            # Src doesn't exist
+            if details.winerror == 2:
+                pass
+            else:
+                raise
+
         try:
             win32api.CopyFile(src, dest, 0)
             return
@@ -332,9 +349,16 @@ def install():
     files = glob.glob(os.path.join(lib_dir, "pywin32_system32\\*.*"))
     if not files:
         raise RuntimeError("No system files to copy!!")
-    # Try the system32 directory first - if that fails due to "access denied",
-    # it implies a non-admin user, and we use sys.prefix
-    for dest_dir in [get_system_dir(), sys.prefix]:
+    # DLL search Paths
+    # 0. The directory where the executable module for the current process
+    #    is located.
+    # 1. The current directory.
+    # 2. The Windows system directory. The GetSystemDirectory function
+    #    retrieves the path of this directory.
+    # 3. The Windows directory. The GetWindowsDirectory function retrieves
+    #    the path of this directory.
+    # 4. The directories listed in the PATH environment variable.
+    for dest_dir in [os.path.dirname(os.path.realpath(sys.executable))]:
         # and copy some files over there
         worked = 0
         try:
