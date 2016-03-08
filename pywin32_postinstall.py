@@ -4,6 +4,7 @@
 # and creates a pth file
 import os, sys, glob, shutil, time, tempfile
 import _winreg as winreg
+from distutils.sysconfig import get_python_lib
 
 # Send output somewhere so it can be found if necessary...
 import tempfile
@@ -358,9 +359,21 @@ def install():
     # 3. The Windows directory. The GetWindowsDirectory function retrieves
     #    the path of this directory.
     # 4. The directories listed in the PATH environment variable.
-    for dest_dir in [os.path.dirname(os.path.realpath(sys.executable))]:
+    #
+    # We would like to avoid the windows system directories (ie,
+    # C:\Windows\SysWow64) as they are a disaster zone.  So, let's take
+    # advantage of the lookup starting with the current process location.
+    #
+    # Add the dlls to the python binary folder, so the python binary
+    # can load them. Additionally, add the dlls to the directory containing
+    # the higher level .pyd DLLs which have pythoncom27 and pywintypes27 as
+    # dependencies.
+    #
+    # This arrangement seems to work fine for now, but could break if we start
+    # using other parts of pywin32 that use .pyds that are located elsewhere.
+    for dest_dir in [os.path.dirname(os.path.realpath(sys.executable)),
+                     os.path.join(lib_dir, "win32")]:
         # and copy some files over there
-        worked = 0
         try:
             for fname in files:
                 base = os.path.basename(fname)
@@ -370,17 +383,6 @@ def install():
                     print "Copied %s to %s" % (base, dst)
                 # Register the files with the uninstaller
                 file_created(dst)
-                worked = 1
-                # If this isn't sys.prefix (ie, System32), then nuke 
-                # any versions that may exist in sys.prefix - having
-                # duplicates causes major headaches.
-                if dest_dir != sys.prefix:
-                    bad_fname = os.path.join(sys.prefix, base)
-                    if os.path.exists(bad_fname):
-                        # let exceptions go here - delete must succeed
-                        os.unlink(bad_fname)
-            if worked:
-                break
         except win32api.error, details:
             if details.winerror==5:
                 # access denied - user not admin - try sys.prefix dir,
@@ -395,9 +397,6 @@ def install():
                     raise RuntimeError(msg)
                 continue
             raise
-    else:
-        raise RuntimeError(
-              "You don't have enough permissions to install the system files")
 
     # Pythonwin 'compiles' config files - record them for uninstall.
     pywin_dir = os.path.join(lib_dir, "Pythonwin", "pywin")
