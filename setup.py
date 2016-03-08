@@ -2,6 +2,7 @@
 
 from distutils.core import setup
 from distutils.errors import DistutilsArgError
+from distutils.sysconfig import get_python_lib
 
 from setuptools.command.install import install
 
@@ -10,6 +11,7 @@ import subprocess
 import sys
 import time
 import pip
+import shutil
 
 from pip.commands.show import search_packages_info
 
@@ -44,6 +46,17 @@ class MyInstall(install):
         rootdir     = os.path.dirname(os.path.realpath(__file__))
         postinstall = os.path.join(rootdir, "pywin32_postinstall.py")
         subprocess.check_call([sys.executable, postinstall, "-install"])
+
+        # python27.dll must be available to Lib/site-packages/win32/PythonService.exe
+        # This piece of code is only going to work if python27.dll is available
+        # in the same directory as the python binary.  In the case of
+        # virtualenv this condition is met if the python binary used to create
+        # the venv has python27.dll in the same directory (virtualenv will copy
+        # this python27.dll to the venv).  The python used to bootstrap
+        # preveil daemon and updater meets this criteria.
+        src  = os.path.join(os.path.dirname(os.path.realpath(sys.executable)), "python27.dll")
+        dest = os.path.join(get_python_lib(), "win32", "python27.dll")
+        shutil.copyfile(src, dest)
 
         install.run(self)
 
