@@ -24,6 +24,7 @@ class MyInstall(install):
         if "win32" != sys.platform:
             raise Exception("Windows is the only supported platform")
 
+        rootdir = os.path.dirname(os.path.realpath(__file__))
         # install_requires/dependency_links doesn't work because the wheel
         # wouldn't be installed until install.run(self). This is a bad plan
         # because pywin32_postinstall can't run until the wheel is installed,
@@ -40,11 +41,11 @@ class MyInstall(install):
         else:
             assert len(pkgs) == 0
             # wheel lifted from here http://www.lfd.uci.edu/~gohlke/pythonlibs/
-            wheel = os.path.join(os.path.dirname(os.path.realpath(__file__)), "pywin32-220-cp27-none-win32.whl")
+            wheel = os.path.join(rootdir, "pyWin32Wrapper",
+                "pywin32-220-cp27-none-win32.whl")
             pip.main(['install', wheel])
 
-        rootdir     = os.path.dirname(os.path.realpath(__file__))
-        postinstall = os.path.join(rootdir, "pywin32_postinstall.py")
+        postinstall = os.path.join(rootdir, "pyWin32Wrapper", "pywin32_postinstall.py")
         subprocess.check_call([sys.executable, postinstall, "-install"])
 
         # python27.dll must be available to Lib/site-packages/win32/PythonService.exe
@@ -60,12 +61,14 @@ class MyInstall(install):
 
         install.run(self)
 
-setup(name='pywin32-wrapper',
+setup(name='pyWin32Wrapper',
       version='1.0',
       description='Handle installation intricacies for pywin32',
       author='Aaron Burrow',
       author_email='burrows@preveil.com',
-      url='https://github.com/PreVeil/pywin32-wrapper',
-      packages=[],
+      url='https://github.com/PreVeil/pyWin32Wrapper',
+      packages=['pyWin32Wrapper'],
+      package_data={'pyWin32Wrapper' :
+          ["pywin32-220-cp27-none-win32.whl", "pywin32_postinstall.py"]},
       cmdclass={'install': MyInstall},
      )
